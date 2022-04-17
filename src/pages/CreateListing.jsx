@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   getStorage,
@@ -12,6 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import Spinner from "../components/Spinner";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+const center = {
+  lat: 12.83,
+  lng: 79.7,
+};
 
 function CreateListing() {
   // eslint-disable-next-line
@@ -32,6 +37,43 @@ function CreateListing() {
     latitude: 0,
     longitude: 0,
   });
+
+  const [position, setPosition] = useState(center);
+  function DraggableMarker() {
+    const [draggable, setDraggable] = useState(false);
+
+    const markerRef = useRef(null);
+    const eventHandlers = useMemo(
+      () => ({
+        dragend() {
+          const marker = markerRef.current;
+          if (marker != null) {
+            setPosition(marker.getLatLng());
+          }
+        },
+      }),
+      []
+    );
+    const toggleDraggable = useCallback(() => {
+      setDraggable((d) => !d);
+    }, []);
+    console.log(position.lat, position.lng);
+
+    return (
+      <Marker
+        draggable={true}
+        eventHandlers={eventHandlers}
+        position={position}
+        ref={markerRef}
+      >
+        <Popup minWidth={90}>
+          <span onClick={toggleDraggable}>{`${position.lat.toFixed(
+            2
+          )} ${position.lng.toFixed(2)}`}</span>
+        </Popup>
+      </Marker>
+    );
+  }
 
   const {
     type,
@@ -112,8 +154,8 @@ function CreateListing() {
     //   }
     // } else
     {
-      geolocation.lat = latitude;
-      geolocation.lng = longitude;
+      geolocation.lat = position.lat;
+      geolocation.lng = position.lng;
     }
 
     // Store image in firebase
@@ -167,6 +209,8 @@ function CreateListing() {
 
     const formDataCopy = {
       ...formData,
+      latitude: position.lat.toFixed(4),
+      longitude: position.lng.toFixed(4),
       imgUrls,
       geolocation,
       timestamp: serverTimestamp(),
@@ -355,7 +399,7 @@ function CreateListing() {
                   className="formInputSmall"
                   type="number"
                   id="latitude"
-                  value={latitude}
+                  value={position.lat}
                   onChange={onMutate}
                   required
                 />
@@ -366,13 +410,27 @@ function CreateListing() {
                   className="formInputSmall"
                   type="number"
                   id="longitude"
-                  value={longitude}
+                  value={position.lng}
                   onChange={onMutate}
                   required
                 />
               </div>
             </div>
           }
+
+          <div style={{ height: "55vh", width: "80vw", marginTop: "10vh" }}>
+            <MapContainer
+              center={center}
+              zoom={10}
+              style={{ height: "100%", width: "100%" }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <DraggableMarker />
+            </MapContainer>
+          </div>
 
           <label className="formLabel">Offer</label>
           <div className="formButtons">
@@ -410,7 +468,7 @@ function CreateListing() {
               max="750000000"
               required
             />
-            {type === "rent" && <p className="formPriceText">$ / Month</p>}
+            {type === "rent" && <p className="formPriceText">₹ / Month</p>}
           </div>
 
           {offer && (
@@ -431,7 +489,7 @@ function CreateListing() {
 
           <label className="formLabel">Images</label>
           <p className="imagesInfo">
-            The first image will be the cover (max 6).
+            The first image will be the cover (max 6)(max size:2mb).
           </p>
           <input
             className="formInputFile"
